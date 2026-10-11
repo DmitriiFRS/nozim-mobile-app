@@ -2,6 +2,7 @@
 window.FOLIO_SEED = {
   profileTabs: [
     {id:'works', type:'works', title:'Работы', enabled:true},
+    {id:'products', type:'products', title:'Продукты', enabled:true},
     {id:'about', type:'about', title:'О себе', enabled:true},
     {id:'reviews', type:'reviews', title:'Отзывы', enabled:true},
     {id:'certificates', type:'certificates', title:'Сертификаты', enabled:true}
@@ -19,6 +20,8 @@ window.FOLIO_SEED = {
     {id:'interior', title:'Тёплый минимализм', category:'Интерьер', location:'Ташкент', year:'2025', image:'assets/images/interior.jpg', images:['assets/images/interior.jpg','assets/images/cover.jpg'], description:'Интерьер квартиры для молодой семьи. Спокойные оттенки, натуральное дерево и удобное хранение в каждой комнате.', role:'Планировка и дизайн интерьера', result:'Объединили кухню и гостиную, организовали отдельную рабочую зону и скрытые системы хранения.'},
     {id:'space', title:'Пространство для жизни', category:'Интерьер', location:'Ташкент', year:'2024', image:'assets/images/cover.jpg', images:['assets/images/cover.jpg'], description:'Переосмысление жилого пространства с акцентом на естественное освещение и удобные повседневные сценарии.', role:'Дизайн и подбор материалов', result:'Сохранили простор, добавили функциональные зоны и тактильные фактуры.'}
   ],
+  products: [],
+  productCategories: [],
   reviews: [
     {id:'review-house', name:'Дмитрий К.', rating:5, date:'2026-09-18', workId:'house', text:'Обратились с идеей дома для семьи. Александр помог продумать планировку, объяснил решения по материалам и освещению. На каждом этапе было понятно, что происходит и какие вопросы нужно решить. Особенно понравилось, как удалось связать гостиную с террасой и садом. Получилось именно то пространство, которое мы представляли.'},
     {id:'review-interior', name:'Марина С.', rating:5, date:'2026-08-04', workId:'interior', text:'Очень внимательный подход к нашим привычкам и пожеланиям. В квартире стало больше света и удобного хранения. Все решения обсуждали заранее, результатом довольны.'},

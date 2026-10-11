@@ -34,6 +34,8 @@
     return result;
   }
   state.profileTabs = normalizeTabs(state.profileTabs);
+  state.products = Array.isArray(state.products) ? state.products.filter(item=>item && typeof item.id === 'string' && typeof item.title === 'string') : [];
+  state.productCategories = Array.isArray(state.productCategories) ? state.productCategories.filter(item=>item && typeof item.id === 'string' && typeof item.name === 'string') : [];
   if (!Array.isArray(state.reviews)) state.reviews = seed().reviews;
   // Migrate category names from existing work without changing saved portfolio content.
   function normalizeCategories() {
@@ -65,6 +67,10 @@
   let workDraft = null;
   let toastTimer;
   let activeFilter = 'all';
+  let productFilter = 'all';
+  const currencies = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : ['USD','EUR','GBP','UZS','RUB','KZT','AED','TRY','CNY','JPY','CHF','CAD','AUD','INR'];
+  const stockLabels = {available:'В наличии',order:'Под заказ',unavailable:'Нет в наличии'};
+  const productPrice = product => Number(product.price).toLocaleString(window.FolioI18n.language,{style:'currency',currency:currencies.includes(product.currency) ? product.currency : 'USD',currencyDisplay:'code'});
   let route = 'home';
   let authDraft = {email:'',step:'email',mode:'',sentAt:0};
   const AUTH_KEY = 'folio.demo-session.v1';
@@ -80,19 +86,19 @@
   let workReturnHash = '#home';
   try {
     const savedReturn = sessionStorage.getItem('folio.work-return');
-    if (/^#(home|settings|works|about|reviews|certificates|work\/[a-z0-9-]+|section\/custom-[a-z0-9-]+)$/i.test(savedReturn || '')) workReturnHash = savedReturn;
+    if (/^#(home|settings|works|products|create|about|reviews|certificates|product\/[a-z0-9-]+|work\/[a-z0-9-]+|section\/custom-[a-z0-9-]+)$/i.test(savedReturn || '')) workReturnHash = savedReturn;
   } catch { /* Return navigation still works when browser storage is unavailable. */ }
   const publishedCertificates = () => state.certificates.filter(item => item.published === true);
   const reviews = () => state.reviews.filter(item => item && typeof item.id === 'string' && typeof item.text === 'string' && item.text.trim() && Number.isInteger(item.rating) && item.rating >= 1 && item.rating <= 5);
   const reviewCountLabel = count => window.FolioI18n.language === 'en' ? `${count} ${count === 1 ? 'review' : 'reviews'}` : `${count} ${count % 10 === 1 && count % 100 !== 11 ? 'отзыв' : count % 10 >= 2 && count % 10 <= 4 && !(count % 100 >= 12 && count % 100 <= 14) ? 'отзыва' : 'отзывов'}`;
   const ratingAverage = () => (reviews().reduce((sum,item)=>sum+item.rating,0)/reviews().length).toLocaleString(window.FolioI18n.language,{minimumFractionDigits:1,maximumFractionDigits:1});
-  const visibleProfileTabs = () => state.profileTabs.filter(tab => tab.enabled && (tab.type !== 'certificates' || publishedCertificates().length > 0) && (tab.type !== 'reviews' || reviews().length > 0));
+  const visibleProfileTabs = () => state.profileTabs.filter(tab => tab.enabled && (tab.type !== 'certificates' || publishedCertificates().length > 0) && (tab.type !== 'reviews' || reviews().length > 0) && (tab.type !== 'products' || state.products.length > 0) && (tab.type !== 'works' || state.works.length > 0));
   const tabHref = tab => tab.type === 'custom' ? html`#section/${tab.id}` : html`#${tab.type}`;
   const displayTabTitle = tab => tab.title === seed().profileTabs.find(item => item.id === tab.id)?.title ? t(tab.title) : tab.title;
   const tabTitle = (type,fallback) => { const tab = state.profileTabs.find(item => item.type === type); return tab ? displayTabTitle(tab) : t(fallback); };
   function profileSectionLink(tab) {
-    const symbol = ({works:'photo',about:'user',certificates:'certificate',reviews:'star',custom:'external-link'})[tab.type];
-    const count = tab.type === 'works' ? state.works.length : tab.type === 'certificates' ? publishedCertificates().length : tab.type === 'reviews' ? reviews().length : null;
+    const symbol = ({works:'photo',products:'package',about:'user',certificates:'certificate',reviews:'star',custom:'external-link'})[tab.type];
+    const count = tab.type === 'products' ? state.products.length : tab.type === 'works' ? state.works.length : tab.type === 'certificates' ? publishedCertificates().length : tab.type === 'reviews' ? reviews().length : null;
     return html`<a href="${tabHref(tab)}" data-profile-tab="${tab.id}" class="glass-button profile-section-link" data-glass><span class="section-symbol">${icon(symbol)}</span><span class="section-name">${esc(displayTabTitle(tab))}</span>${count !== null ? html`<span class="section-count" aria-hidden="true">${count}</span>` : ''}<span class="section-arrow">${icon('chevron-right')}</span></a>`;
   }
   function toast(message) {
@@ -105,7 +111,7 @@
   function save(next) {
     try {
       // Store each gallery image once; legacy image/images aliases are rebuilt on load.
-      const stored = {...next,works:next.works.map(work=>{
+      const stored = {...next,products:(next.products || []).map(({image,images,...data})=>data),works:next.works.map(work=>{
         if (!Array.isArray(work.photos)) return work;
         const {image,images,...data} = work;
         return data;
@@ -135,6 +141,7 @@
     work.photos = photos; work.image = photos[0]?.src || ''; work.images = photos.map(photo=>photo.src);
   }
   state.works.forEach(normalizePhotos);
+  state.products.forEach(normalizePhotos);
   function imageMarkup(src, alt, extra = '') {
     const safe = imageSrc(src);
     return safe ? html`<img src="${safe}" alt="${esc(alt)}" ${extra}>` : icon('photo');
@@ -163,10 +170,31 @@
         ${[['instagram','brand-instagram','Instagram'],['telegram','brand-telegram','Telegram'],['whatsapp','brand-whatsapp','WhatsApp'],['phone','phone','Телефон'],['email','mail','Электронная почта']].map(([type,symbol,label]) => html`<button class="glass-button icon-button" data-glass data-contact="${type}" aria-label="${esc(t(label))}">${icon(symbol)}</button>`).join('')}
       </div><p class="contact-hint">Выберите удобный способ связаться</p>
     </div>
-    <div class="profile-menu" id="profile-menu"><a href="#create-profile">${icon('pencil')} Изменить профиль</a><a href="#edit-tabs">${icon('pencil')} Настроить вкладки</a><a href="#create-work">${icon('plus')} Добавить работу</a><button data-action="share">${icon('share')} Поделиться профилем</button><button data-action="certificate-demo">Показать / скрыть демо-сертификат</button><button data-action="reset">Восстановить демо</button></div>
+    <div class="profile-menu" id="profile-menu"><a href="#create-profile">${icon('pencil')} Изменить профиль</a><a href="#edit-tabs">${icon('pencil')} Настроить вкладки</a><a href="#create">${icon('plus')} Добавить публикацию</a><button data-action="share">${icon('share')} Поделиться профилем</button><button data-action="certificate-demo">Показать / скрыть демо-сертификат</button><button data-action="reset">Восстановить демо</button></div>
     <nav class="profile-sections" aria-label="Разделы портфолио">
       ${visibleProfileTabs().map(profileSectionLink).join('')}
     </nav><div class="tab-settings-link"><a class="text-link" href="#edit-tabs">${icon('pencil')}Настроить вкладки</a></div>`;
+  }
+  function createChoice() {
+    return html`${toolbar('Что хотите добавить?',workReturnHash.slice(1))}<section class="screen-content"><p class="page-intro">Покажите выполненный проект или предложите свой продукт.</p><div class="publication-choices">${[['create-work','Работу','photo','Проекты, опыт и результаты'],['create-product','Продукт','package','Фото, цена за штуку и наличие']].map(([href,title,symbol,description])=>html`<a class="glass-button publication-choice" data-glass href="#${href}">${icon(symbol)}<span><strong>${esc(t(title))}</strong><small>${esc(t(description))}</small></span>${icon('chevron-right')}</a>`).join('')}</div></section>`;
+  }
+  function productsScreen() {
+    if (!state.productCategories.some(item=>item.id===productFilter)) productFilter = 'all';
+    const items = state.products.filter(item=>productFilter==='all' || item.categoryId===productFilter);
+    return html`${toolbar(tabTitle('products','Продукты'))}<section class="screen-content"><div class="works-controls"><a class="text-link" href="#product-categories">${icon('pencil')}Управлять категориями</a></div><div class="filter-row" aria-label="Категории продуктов">${[{id:'all',name:t('Все')},...state.productCategories].map(item=>html`<button class="filter ${productFilter===item.id ? 'active' : ''}" data-product-filter="${esc(item.id)}" aria-pressed="${productFilter===item.id}">${esc(item.name)}</button>`).join('')}</div>${items.length ? html`<div class="work-grid all-works">${items.map(product=>html`<a href="#product/${encodeURIComponent(product.id)}" class="work-card product-card"><div class="work-card-image">${imageMarkup(product.image,product.title,'loading="lazy"')}</div><h3>${esc(product.title)}</h3><p class="product-card-price">${esc(productPrice(product))}<span> / шт.</span></p><p class="product-stock ${product.stock==='unavailable' ? 'stock-unavailable' : ''}">${esc(t(stockLabels[product.stock] || stockLabels.available))}</p><p class="work-card-description">${esc(product.description)}</p></a>`).join('')}</div>` : html`<div class="empty-state">${icon('package')}<h2>${esc(t(state.products.length ? 'В этой категории пока нет продуктов.' : 'Добавьте первый продукт'))}</h2><p>Укажите цену, наличие и покажите фотографии.</p></div>`}${glassLink('#create-product','Добавить продукт','plus','primary full-button')}</section>`;
+  }
+  function productScreen(id) {
+    const product = state.products.find(item=>item.id===id);
+    if (!product) return html`${toolbar('Продукт не найден','products')}<section class="screen-content"><p>Этого продукта больше нет в каталоге.</p>${glassLink('#products','Вернуться к продуктам','arrow-left','full-button')}</section>`;
+    return html`<header class="work-page-header"><a class="glass-button icon-button" data-glass href="#products" aria-label="Назад">${icon('arrow-left')}</a><div class="work-toolbar-actions"><a class="glass-button icon-button" data-glass href="#edit-product/${encodeURIComponent(id)}" aria-label="Редактировать продукт">${icon('pencil')}</a><button class="glass-button icon-button" data-glass data-action="share-work" aria-label="Поделиться">${icon('share')}</button></div></header><div class="work-intro"><p class="project-category">${esc(product.category)}</p><h1 class="project-title">${esc(product.title)}</h1><p class="product-detail-price">${esc(productPrice(product))}<span> / шт.</span></p><p class="product-stock ${product.stock==='unavailable' ? 'stock-unavailable' : ''}">${esc(t(stockLabels[product.stock] || stockLabels.available))}</p></div><section class="project-overview"><h2>О продукте</h2><div class="rich-text-content">${window.FolioRichText.sanitize(product.descriptionHtml || window.FolioRichText.fromPlain(product.description))}</div></section>${workGallery(product)}<section class="screen-content"><p class="page-intro">${esc(t(product.stock==='unavailable' ? 'Уточните у владельца, когда продукт снова появится.' : 'Уточните условия заказа напрямую у владельца.'))}</p><button class="glass-button primary full-button" data-glass data-contact="phone">${icon('phone')}Связаться по поводу продукта</button></section>`;
+  }
+  function productForm(id='') {
+    const original = id ? state.products.find(item=>item.id===id) : {};
+    if (!original) return productScreen(id);
+    if (!workDraft || workDraft.id!==id || workDraft.kind!=='product') workDraft = {...original,id,kind:'product',currency:original.currency || 'UZS',stock:original.stock || 'available',photos:JSON.parse(JSON.stringify(original.photos || []))};
+    const product = workDraft;
+    const back = id ? '#product/'+encodeURIComponent(id) : workReturnHash;
+    return html`${toolbar(id ? 'Редактировать продукт' : 'Новый продукт',back.slice(1))}<form id="work-form" class="form-section" data-product="true" data-work-id="${esc(id)}">${field('title','Название продукта',product.title,{required:true,placeholder:'Например, деревянный стол'})}<div class="field"><label for="category">Категория</label><input id="category" name="category" maxlength="80" value="${esc(product.category || '')}" list="product-categories" placeholder="${esc(t('Выберите или введите свою'))}"><datalist id="product-categories">${state.productCategories.map(item=>html`<option value="${esc(item.name)}"></option>`).join('')}</datalist><small>Новая категория сохранится вместе с продуктом.</small></div><div class="product-price-fields"><div class="field"><label for="price">Цена за штуку *</label><input type="number" id="price" name="price" min="0" max="9999999999" step="any" required inputmode="decimal" value="${esc(product.price ?? '')}" placeholder="0"></div><div class="field"><label for="currency">Валюта *</label><select id="currency" name="currency" required>${currencies.map(currency=>html`<option value="${currency}" ${product.currency===currency ? 'selected' : ''}>${currency}</option>`).join('')}</select></div></div><div class="field"><label for="stock">Наличие *</label><select id="stock" name="stock" required>${Object.entries(stockLabels).map(([value,label])=>html`<option value="${value}" ${product.stock===value ? 'selected' : ''}>${esc(t(label))}</option>`).join('')}</select></div>${descriptionEditor(product).replace(t('О проекте'),t('О продукте')).replace(t('Форматируйте описание проекта, добавляйте списки и ссылки.'),t('Форматируйте описание продукта, добавляйте списки и ссылки.'))}${photosEditor()}<p class="form-error" id="form-error" role="alert"></p><div class="form-actions">${glassLink(back,'Отмена','')}<button class="glass-button primary" data-glass type="submit">${icon('check')}${esc(t(id ? 'Сохранить изменения' : 'Опубликовать'))}</button></div><p class="form-status">Цена фиксированная, за одну штуку. Данные сохраняются в этом браузере.</p>${id ? html`<button type="button" class="text-link delete-work" data-action="delete-product">Удалить продукт</button>` : ''}</form><dialog id="product-delete-dialog"><h2>Удалить продукт?</h2><p>Продукт и его фотографии будут удалены из каталога.</p><div class="dialog-actions"><button class="glass-button" data-glass data-action="cancel-delete-product">Отмена</button><button class="glass-button" data-glass data-action="confirm-delete-product">Удалить</button></div></dialog>`;
   }
   function workCard(work) {
     return html`<a class="work-card" href="#work/${encodeURIComponent(work.id)}"><div class="work-card-image">${imageMarkup(work.image, work.title, 'loading="lazy"')}</div><h3>${esc(work.title)}</h3><p class="work-card-description">${esc(work.description)}</p></a>`;
@@ -207,8 +235,10 @@
     else app.querySelector('[data-category-command=add]')?.focus();
   }
   function categoriesForm() {
-    if (!categoriesDraft) categoriesDraft = JSON.parse(JSON.stringify(state.categories));
-    return html`${toolbar('Категории работ','works')}<form class="form-section" id="categories-form"><p class="page-intro">Создайте категории под вашу профессию.<br>Переименование обновит категорию у всех связанных работ.</p><div class="category-editor-list">${categoriesDraft.map(category => html`<div class="category-editor-row"><div class="field"><label for="category-${category.id}">Название категории</label><input id="category-${category.id}" name="category-${category.id}" maxlength="80" required value="${esc(category.name)}" placeholder="${esc(t('Например, ремонт квартир'))}"></div><button type="button" class="glass-button icon-button" data-glass data-category-command="remove" data-category-id="${esc(category.id)}" aria-label="${esc(t('Удалить категорию'))}: ${esc(category.name)}">${icon('x')}</button></div>`).join('')}</div>${!categoriesDraft.length ? '<p class="page-intro">'+esc(t('Создайте первую категорию или оставьте работы без категории.'))+'</p>' : ''}<button type="button" class="glass-button full-button" data-glass data-category-command="add">${icon('plus')}Добавить категорию</button><p class="form-status">Удаление категории не удаляет работы. Изменения применятся после сохранения.</p><p class="form-error" role="alert" id="form-error"></p><div class="form-actions">${formActions('works')}</div></form>`;
+    const products = route === 'product-categories';
+    const back = products ? 'products' : 'works';
+    if (!categoriesDraft) categoriesDraft = JSON.parse(JSON.stringify(products ? state.productCategories : state.categories));
+    return html`${toolbar(products ? 'Категории продуктов' : 'Категории работ',back)}<form class="form-section" id="categories-form"><p class="page-intro">${esc(t(products ? 'Создайте категории для своих продуктов. Переименование обновит связанные продукты.' : 'Создайте категории под вашу профессию. Переименование обновит категорию у всех связанных работ.'))}</p><div class="category-editor-list">${categoriesDraft.map(category => html`<div class="category-editor-row"><div class="field"><label for="category-${category.id}">Название категории</label><input id="category-${category.id}" name="category-${category.id}" maxlength="80" required value="${esc(category.name)}" placeholder="${esc(t(products ? 'Например, мебель' : 'Например, ремонт квартир'))}"></div><button type="button" class="glass-button icon-button" data-glass data-category-command="remove" data-category-id="${esc(category.id)}" aria-label="${esc(t('Удалить категорию'))}: ${esc(category.name)}">${icon('x')}</button></div>`).join('')}</div>${!categoriesDraft.length ? '<p class="page-intro">'+esc(t(products ? 'Создайте первую категорию или оставьте продукты без категории.' : 'Создайте первую категорию или оставьте работы без категории.'))+'</p>' : ''}<button type="button" class="glass-button full-button" data-glass data-category-command="add">${icon('plus')}Добавить категорию</button><p class="form-status">${esc(t(products ? 'Удаление категории не удаляет продукты. Изменения применятся после сохранения.' : 'Удаление категории не удаляет работы. Изменения применятся после сохранения.'))}</p><p class="form-error" role="alert" id="form-error"></p><div class="form-actions">${formActions(back)}</div></form>`;
   }
   function worksScreen() {
     return html`${toolbar(tabTitle('works','Работы'),'home',true)}<section class="screen-content"><p class="page-intro">Каждая работа рассказывает о вашем опыте.<br>Соберите лучшие в одном месте.</p>${worksContent()}</section>`;
@@ -325,7 +355,7 @@
     const form = app.querySelector('#work-form');
     if (!form || !workDraft) return;
     const data = new FormData(form);
-    for (const name of ['title','category','description','result','location','year']) workDraft[name] = String(data.get(name) || '');
+    for (const name of ['title','category','description','result','location','year','price','currency','stock']) workDraft[name] = String(data.get(name) || '');
     workDraft.descriptionHtml = window.FolioRichText.sanitize(app.querySelector('#description-editor')?.innerHTML || '');
     workDraft.description = window.FolioRichText.plain(workDraft.descriptionHtml);
     workDraft.photos.forEach(photo=>{
@@ -351,7 +381,7 @@
     else app.querySelector('[data-photo-command="add"]')?.focus();
   }
   function photosEditor() {
-    return html`<div class="photo-editor-heading"><h2>Фотографии и описания</h2><p>Первое фото станет обложкой работы. До 8 фото.</p></div><div class="photo-editor-list">${workDraft.photos.map((photo,index)=>html`<section class="photo-editor-item" data-photo-id="${photo.id}"><div class="photo-editor-toolbar"><h3>${esc(t('Фото'))} ${index+1}</h3><div class="photo-editor-actions"><button type="button" class="glass-button icon-button" data-glass data-photo-command="up" data-photo-id="${photo.id}" aria-label="Переместить фото выше" ${index === 0 ? 'disabled' : ''}>${icon('arrow-left')}</button><button type="button" class="glass-button icon-button" data-glass data-photo-command="down" data-photo-id="${photo.id}" aria-label="Переместить фото ниже" ${index === workDraft.photos.length-1 ? 'disabled' : ''}>${icon('arrow-right')}</button><button type="button" class="glass-button icon-button" data-glass data-photo-command="remove" data-photo-id="${photo.id}" aria-label="Удалить фото">${icon('x')}</button></div></div>${photo.src ? imageMarkup(photo.src,t('Фото')+' '+(index+1),'class="photo-editor-preview"') : ''}${upload('photoImage-'+photo.id,photo.src ? 'Заменить фото' : 'Выбрать фото')}${field('caption-'+photo.id,'Описание фотографии',photo.caption,{area:true,placeholder:'Что показано на этом фото?'})}</section>`).join('')}</div><button type="button" class="glass-button full-button" data-glass data-photo-command="add" ${workDraft.photos.length >= 8 ? 'disabled' : ''}>${icon('plus')}Добавить фотографию</button>`;
+    return html`<div class="photo-editor-heading"><h2>Фотографии и описания</h2><p>Первое фото станет обложкой. До 8 фото.</p></div><div class="photo-editor-list">${workDraft.photos.map((photo,index)=>html`<section class="photo-editor-item" data-photo-id="${photo.id}"><div class="photo-editor-toolbar"><h3>${esc(t('Фото'))} ${index+1}</h3><div class="photo-editor-actions"><button type="button" class="glass-button icon-button" data-glass data-photo-command="up" data-photo-id="${photo.id}" aria-label="Переместить фото выше" ${index === 0 ? 'disabled' : ''}>${icon('arrow-left')}</button><button type="button" class="glass-button icon-button" data-glass data-photo-command="down" data-photo-id="${photo.id}" aria-label="Переместить фото ниже" ${index === workDraft.photos.length-1 ? 'disabled' : ''}>${icon('arrow-right')}</button><button type="button" class="glass-button icon-button" data-glass data-photo-command="remove" data-photo-id="${photo.id}" aria-label="Удалить фото">${icon('x')}</button></div></div>${photo.src ? imageMarkup(photo.src,t('Фото')+' '+(index+1),'class="photo-editor-preview"') : ''}${upload('photoImage-'+photo.id,photo.src ? 'Заменить фото' : 'Выбрать фото')}${field('caption-'+photo.id,'Описание фотографии',photo.caption,{area:true,placeholder:'Что показано на этом фото?'})}</section>`).join('')}</div><button type="button" class="glass-button full-button" data-glass data-photo-command="add" ${workDraft.photos.length >= 8 ? 'disabled' : ''}>${icon('plus')}Добавить фотографию</button>`;
   }
   function descriptionEditor(work) {
     const content = window.FolioRichText.sanitize(work.descriptionHtml || window.FolioRichText.fromPlain(work.description));
@@ -360,7 +390,7 @@
   function workForm(id = '') {
     const editing = Boolean(id);
     const original = editing ? state.works.find(item => item.id === id) : {};
-    if (original && (!workDraft || workDraft.id !== id)) workDraft = {...original,id,photos:JSON.parse(JSON.stringify(original.photos || []))};
+    if (original && (!workDraft || workDraft.id !== id || workDraft.kind !== 'work')) workDraft = {...original,id,kind:'work',photos:JSON.parse(JSON.stringify(original.photos || []))};
     const work = original && workDraft;
     if (!work) return html`${toolbar('Работа не найдена','works')}<section class="screen-content"><p class="page-intro">Этой работы больше нет в портфолио.</p>${glassLink('#works','Вернуться к работам','arrow-left')}</section>`;
     const backHash = editing ? `#work/${encodeURIComponent(id)}` : workReturnHash;
@@ -368,11 +398,11 @@
   }
   function updateNavigation() {
     const certificate = visibleProfileTabs().some(tab => tab.type === 'certificates');
-    const links = [['welcome','Приветствие'],['signup','Создать портфолио'],['signin','Войти'],['home','Главный'],['settings','Настройки'],['works','Мои работы'],['work/'+(state.works[0]?.id || 'missing'),'Карточка работы'],['about','О себе'],...(reviews().length ? [['reviews','Отзывы']] : []),['create-profile','Создание профиля'],['create-work','Создание работы'],['edit-tabs','Вкладки профиля'],...(certificate ? [['certificates','Сертификаты']] : [])];
+    const links = [['welcome','Приветствие'],['signup','Создать портфолио'],['signin','Войти'],['home','Главный'],['settings','Настройки'],['works','Мои работы'],['work/'+(state.works[0]?.id || 'missing'),'Карточка работы'],['about','О себе'],...(reviews().length ? [['reviews','Отзывы']] : []),['create-profile','Создание профиля'],['create','Добавить'],['products','Продукты'],['create-work','Создание работы'],['create-product','Новый продукт'],['edit-tabs','Вкладки профиля'],...(certificate ? [['certificates','Сертификаты']] : [])];
     document.querySelector('#preview-nav').innerHTML = links.map(([target,label],i) => html`<a class="preview-link" href="#${esc(target)}" ${route === target.split('/')[0] ? 'aria-current="page"' : ''}><span>${String(i+1).padStart(2,'0')}</span>${esc(t(label))}</a>`).join('');
     const active = ['settings','create-profile','edit-tabs','personal-data','contacts-edit','certificates-edit','certificate-edit','language'].includes(route) ? 'settings' : 'home';
     document.querySelector('#bottom-nav').innerHTML = [['home','Главная','home'],['settings','Настройки','settings']].map(([target,label,symbol]) => html`<a href="#${target}" data-glass ${active === target ? 'aria-current="page"' : ''}>${icon(symbol)}<span>${esc(t(label))}</span></a>`).join('');
-    const editing = ['welcome','signup','signin','create-work','create-profile','edit-tabs','personal-data','contacts-edit','certificate-edit','language','categories-edit','edit-work'].includes(route);
+    const editing = ['welcome','signup','signin','create-work','create-product','edit-product','product-categories','create-profile','edit-tabs','personal-data','contacts-edit','certificate-edit','language','categories-edit','edit-work'].includes(route);
     document.querySelector('#bottom-dock').hidden = editing;
     document.querySelector('.device').classList.toggle('is-editing',editing);
     document.querySelector('#toggle-certificate').textContent = state.certificates.some(cert => cert.id === 'demo-certificate') ? 'Скрыть демо-сертификат' : 'Добавить демо-сертификат';
@@ -391,16 +421,17 @@
       location.replace(legacyTab ? tabHref(legacyTab) : '#home');
       return;
     }
-    if (target === 'create-work' && route !== 'create-work' && lastRenderedHash) {
+    if (['create-work','create-product','create'].includes(target) && !['create-work','create-product','create'].includes(route) && lastRenderedHash) {
       workReturnHash = lastRenderedHash;
       try { sessionStorage.setItem('folio.work-return',workReturnHash); } catch {}
     }
     if (target === 'publications') { location.replace('#works'); return; }
+    if (route !== target && ['categories-edit','product-categories'].includes(target)) categoriesDraft = null;
     route = target;
     if (route !== 'edit-tabs') tabsDraft = null;
-    if (route !== 'categories-edit') categoriesDraft = null;
-    if (!['create-work','edit-work'].includes(route)) workDraft = null;
-    const screens = {welcome:welcomeScreen,signup:()=>authScreen('signup'),signin:()=>authScreen('signin'),home:homeScreen,settings:settingsScreen,'categories-edit':categoriesForm,'personal-data':personalDataForm,'contacts-edit':contactsForm,'certificates-edit':certificateManager,'certificate-edit':()=>certificateForm(id),language:languageForm,works:worksScreen,work:()=>workScreen(id),about:aboutScreen,reviews:reviewsScreen,certificates:certificatesScreen,section:()=>customSectionScreen(id),'create-profile':profileForm,'create-work':workForm,'edit-work':()=>workForm(id || 'missing'),'edit-tabs':tabsForm};
+    if (!['categories-edit','product-categories'].includes(route)) categoriesDraft = null;
+    if (!['create-work','edit-work','create-product','edit-product'].includes(route)) workDraft = null;
+    const screens = {create:createChoice,products:productsScreen,product:()=>productScreen(id),'create-product':productForm,'edit-product':()=>productForm(id || 'missing'),'product-categories':categoriesForm,welcome:welcomeScreen,signup:()=>authScreen('signup'),signin:()=>authScreen('signin'),home:homeScreen,settings:settingsScreen,'categories-edit':categoriesForm,'personal-data':personalDataForm,'contacts-edit':contactsForm,'certificates-edit':certificateManager,'certificate-edit':()=>certificateForm(id),language:languageForm,works:worksScreen,work:()=>workScreen(id),about:aboutScreen,reviews:reviewsScreen,certificates:certificatesScreen,section:()=>customSectionScreen(id),'create-profile':profileForm,'create-work':workForm,'edit-work':()=>workForm(id || 'missing'),'edit-tabs':tabsForm};
     if (!screens[route]) route = 'home';
     app.classList.toggle('auth-surface',['welcome','signup','signin'].includes(route));
     app.innerHTML = screens[route]();
@@ -416,8 +447,8 @@
     cleanupGallery = window.initWorkGallery(app);
     cleanupRichText = window.FolioRichText.init(app);
     if (focus) { app.focus({preventScroll:true}); window.scrollTo({top:0,behavior:'instant'}); }
-    document.title = `${t(({welcome:'Добро пожаловать',signup:'Создать портфолио',signin:'Войти',home:'Главная',settings:'Настройки','categories-edit':'Категории работ','personal-data':'Личные данные','contacts-edit':'Контакты','certificates-edit':'Сертификаты','certificate-edit':'Редактировать сертификат',language:'Язык интерфейса',works:tabTitle('works','Работы'),work:'Работа',about:tabTitle('about','О себе'),reviews:tabTitle('reviews','Отзывы'),certificates:tabTitle('certificates','Сертификаты'),section:state.profileTabs.find(tab=>tab.id===id)?.title || 'Раздел','create-profile':'Создание профиля','create-work':'Новая работа','edit-work':'Редактировать работу','edit-tabs':'Вкладки профиля'})[route])} · Folio`;
-    lastRenderedHash = '#' + route + (id && ['work','section','certificate-edit','edit-work'].includes(route) ? '/' + encodeURIComponent(id) : '');
+    document.title = `${t(({create:'Добавить',products:'Продукты',product:'Продукт','create-product':'Новый продукт','edit-product':'Редактировать продукт','product-categories':'Категории продуктов',welcome:'Добро пожаловать',signup:'Создать портфолио',signin:'Войти',home:'Главная',settings:'Настройки','categories-edit':'Категории работ','personal-data':'Личные данные','contacts-edit':'Контакты','certificates-edit':'Сертификаты','certificate-edit':'Редактировать сертификат',language:'Язык интерфейса',works:tabTitle('works','Работы'),work:'Работа',about:tabTitle('about','О себе'),reviews:tabTitle('reviews','Отзывы'),certificates:tabTitle('certificates','Сертификаты'),section:state.profileTabs.find(tab=>tab.id===id)?.title || 'Раздел','create-profile':'Создание профиля','create-work':'Новая работа','edit-work':'Редактировать работу','edit-tabs':'Вкладки профиля'})[route])} · Folio`;
+    lastRenderedHash = '#' + route + (id && ['work','product','section','certificate-edit','edit-work','edit-product'].includes(route) ? '/' + encodeURIComponent(id) : '');
     app.querySelectorAll('input[type=file]').forEach(input => input.addEventListener('change', () => handleUpload(input)));
   }
   function formError(message) { const element = document.querySelector('#form-error'); if (element) {element.textContent = t(message); element.scrollIntoView({block:'center'});} else toast(message); }
@@ -472,13 +503,15 @@
       if (categoriesDraft.some(category => !category.name)) { formError('Укажите название каждой категории.'); return; }
       const names = categoriesDraft.map(category => category.name.toLocaleLowerCase());
       if (new Set(names).size !== names.length) { formError('Названия категорий не должны повторяться.'); return; }
-      next.categories = JSON.parse(JSON.stringify(categoriesDraft));
-      next.works.forEach(work => {
-        const category = next.categories.find(item => item.id === work.categoryId);
+      const products = route === 'product-categories';
+      const key = products ? 'productCategories' : 'categories';
+      next[key] = JSON.parse(JSON.stringify(categoriesDraft));
+      (products ? next.products : next.works).forEach(work => {
+        const category = next[key].find(item => item.id === work.categoryId);
         work.category = category?.name || ''; work.categoryId = category?.id || '';
       });
       if (!save(next)) { formError('Не удалось сохранить изменения в браузере'); return; }
-      activeFilter = 'all'; location.hash = 'works'; toast('Категории сохранены'); return;
+      activeFilter = 'all'; productFilter = 'all'; location.hash = products ? 'products' : 'works'; toast('Категории сохранены'); return;
     }
     if (form.id === 'language-form') {
       if (!window.FolioI18n.setLanguage(value('language'))) { formError('Не удалось сохранить язык. Проверьте хранилище браузера.'); return; }
@@ -527,6 +560,24 @@
       if (value('certificateTitle')) next.certificates.push({...state.certificates.find(cert=>cert.id==='profile-certificate'),id:'profile-certificate',title:value('certificateTitle'),issuer:value('certificateIssuer'),year:value('certificateYear'),published:data.has('certificatePublished')});
       if (!save(next)) { formError('Не удалось сохранить профиль. Возможно, память браузера заполнена или отключена. Попробуйте фото меньшего размера.'); return; }
       location.hash = 'about'; toast('Профиль сохранён в этом браузере');
+    } else if (form.dataset.product === 'true') {
+      captureWorkDraft();
+      if (!value('title') || !workDraft.description) {formError('Заполните название и описание продукта.');return;}
+      const price=Number(value('price')), currency=value('currency');
+      if (!value('price') || !Number.isFinite(price) || price<0 || price>9999999999 || !currencies.includes(currency)) {formError('Укажите корректную цену и валюту.');return;}
+      const digits=new Intl.NumberFormat('en',{style:'currency',currency}).resolvedOptions().maximumFractionDigits;
+      if (price !== Number(price.toFixed(digits))) {formError('Цена содержит слишком много знаков после запятой для этой валюты.');return;}
+      if (!stockLabels[value('stock')]) {formError('Выберите наличие продукта.');return;}
+      const existingId=form.dataset.workId, existing=existingId ? next.products.find(item=>item.id===existingId) : null;
+      if(existingId && !existing){formError('Этого продукта больше нет в каталоге.');return;}
+      const photos=workDraft.photos.map(photo=>({id:photo.id,src:imageSrc(photo.src),caption:photo.caption.trim()}));
+      if(photos.some(photo=>!photo.src)){formError('Выберите фото для каждой записи или удалите пустую запись.');return;}
+      const name=value('category');let category=next.productCategories.find(item=>item.name.toLocaleLowerCase()===name.toLocaleLowerCase());
+      if(!category && name){category={id:'category-'+(window.crypto?.randomUUID?.() || Date.now()),name};next.productCategories.push(category);}
+      const product={id:existing?.id || 'product-'+(window.crypto?.randomUUID?.() || Date.now()),title:value('title'),price,currency,stock:value('stock'),categoryId:category?.id || '',category:category?.name || '',description:workDraft.description,descriptionHtml:workDraft.descriptionHtml,photos,image:photos[0]?.src || '',images:photos.map(photo=>photo.src)};
+      if(existing) next.products[next.products.findIndex(item=>item.id===existingId)]={...existing,...product};else next.products.unshift(product);
+      if(!save(next)){formError('Не удалось сохранить продукт. Попробуйте фото меньшего размера.');return;}
+      productFilter='all';location.hash='product/'+product.id;toast(existing ? 'Изменения продукта сохранены' : 'Продукт опубликован');
     } else {
       captureWorkDraft();
       if (!value('title') || !workDraft.description) { formError('Заполните название и описание работы.'); if (!workDraft.description) app.querySelector('#description-editor')?.focus(); return; }
@@ -575,6 +626,12 @@
   document.addEventListener('click', event => {
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (action === 'menu') { const menu = document.querySelector('#profile-menu'); const open = menu.classList.toggle('open'); event.target.closest('button').setAttribute('aria-expanded', String(open)); }
+    if (action === 'delete-product') app.querySelector('#product-delete-dialog').showModal();
+    if (action === 'cancel-delete-product') app.querySelector('#product-delete-dialog').close();
+    if (action === 'confirm-delete-product') {
+      const id=app.querySelector('#work-form').dataset.workId;
+      if(save({...state,products:state.products.filter(item=>item.id!==id)})){productFilter='all';location.hash='products';toast('Продукт удалён');}else toast('Не удалось сохранить изменения в браузере');
+    }
     if (action === 'delete-work') document.querySelector('#work-delete-dialog').showModal();
     if (action === 'cancel-delete-work') document.querySelector('#work-delete-dialog').close();
     if (action === 'confirm-delete-work') {
@@ -608,6 +665,8 @@
     if (categoryCommand) editCategory(categoryCommand.dataset.categoryCommand,categoryCommand.dataset.categoryId);
     const tabCommand = event.target.closest('[data-tab-command]');
     if (tabCommand) editTab(tabCommand.dataset.tabCommand,tabCommand.dataset.tabId);
+    const productButton = event.target.closest('[data-product-filter]');
+    if (productButton) {productFilter=productButton.dataset.productFilter;render(false);app.querySelector(`[data-product-filter="${CSS.escape(productFilter)}"]`)?.focus();}
     const filter = event.target.closest('[data-filter]');
     if (filter) { activeFilter = filter.dataset.filter; render(false); app.querySelector(`[data-filter="${CSS.escape(activeFilter)}"]`)?.focus(); }
     const channel = event.target.closest('[data-contact]');
@@ -620,7 +679,7 @@
   document.querySelector('#cancel-reset').addEventListener('click', () => document.querySelector('#reset-dialog').close());
   document.querySelector('#confirm-reset').addEventListener('click', () => {
     if (!save(seed())) { toast('Не удалось восстановить демо: хранилище недоступно'); return; }
-    normalizeCategories(); state.works.forEach(normalizePhotos); document.querySelector('#reset-dialog').close(); activeFilter = 'all';
+    normalizeCategories(); state.works.forEach(normalizePhotos); state.products.forEach(normalizePhotos); document.querySelector('#reset-dialog').close(); activeFilter = 'all';
     if (location.hash === '#home') render(); else location.hash = 'home';
     toast('Демонстрационные данные восстановлены');
   });
