@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1012">
+  <meta name="description" content="Интерактивный макет мобильного портфолио для специалистов.">
+  <title>Folio · Портфолио специалиста</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/glass.css">
+  <script src="js/data.js" defer></script>
+  <script src="js/glass-buttons.js" defer></script>
+  <script src="js/i18n.js" defer></script>
+  <script src="js/work-gallery.js" defer></script>
+  <script src="js/rich-text.js" defer></script>
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <div class="presentation">
+    <aside class="preview-sidebar" aria-label="Навигация по макету">
+      <a class="wordmark" href="#home">folio<span>.</span></a>
+      <p class="preview-description">Ваш опыт.<br>Ваша работа.<br>Ваше портфолио.</p>
+      <div class="preview-heading">Экраны приложения</div>
+      <nav id="preview-nav"></nav>
+      <div class="preview-tools">
+        <button id="toggle-certificate" type="button">Добавить демо-сертификат</button>
+        <button id="reset-demo" type="button">Восстановить демо</button>
+        <a href="assets/reference/main-reference.png" target="_blank" rel="noopener">Дизайн-референс ↗</a>
+      </div>
+      <p class="preview-note">Интерактивный макет<br>Данные сохраняются в этом браузере</p>
+    </aside>
+    <div class="device">
+      <main id="app" tabindex="-1" aria-label="Портфолио специалиста"></main>
+      <div id="bottom-dock" class="bottom-dock glass-panel">
+        <nav id="bottom-nav" class="bottom-nav" aria-label="Основная навигация"></nav>
+        <a href="#create-work" class="glass-button primary create-work-action" data-glass aria-label="Добавить работу"><img class="icon" src="assets/icons/plus.svg" alt="" aria-hidden="true"></a>
+      </div>
+    </div>
+    <aside class="preview-caption" aria-label="Информация о макете">
+      <span class="preview-tag">МОБИЛЬНОЕ ПОРТФОЛИО</span>
+      <h2>Пусть ваши<br>работы говорят<br>за вас.</h2>
+      <p>Один профиль для опыта,<br>проектов и новых возможностей.</p>
+      <div class="caption-line"></div>
+      <span class="caption-small">HTML · CSS · JavaScript</span>
+    </aside>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <dialog id="reset-dialog">
+    <h2>Восстановить демо?</h2>
+    <p>Профиль и добавленные вами работы будут заменены демонстрационными данными.</p>
+    <div class="dialog-actions"><button class="glass-button" data-glass id="cancel-reset">Отмена</button><button class="glass-button" data-glass id="confirm-reset">Восстановить</button></div>
+  </dialog>
+  <noscript>Для интерактивного макета включите JavaScript в настройках браузера.</noscript>
+</body>
+</html>
