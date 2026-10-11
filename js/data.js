@@ -34,3 +34,14 @@ window.FOLIO_SEED = {
 window.FOLIO_SEED.works.forEach(work => {
   work.photos = work.images.map((src,index)=>({id:'photo-'+(index+1),src,caption:index === 0 ? work.description : 'Внутреннее пространство: естественный свет и открытая планировка.'}));
 });
+
+// Standalone preview fixture: never inserted into the owner's saved catalog.
+window.FOLIO_DEMO_PRODUCT = {
+  id:'demo-table',title:'Журнальный стол',category:'Мебель',price:1250000,currency:'UZS',stock:'order',
+  description:'Журнальный стол для гостиной. Лаконичная форма и натуральные материалы сочетаются с современным интерьером. Размер и отделку можно обсудить с мастером.',
+  descriptionHtml:'<p>Журнальный стол для гостиной. <strong>Лаконичная форма и натуральные материалы</strong> сочетаются с современным интерьером.</p><p>Размер и отделку можно обсудить с мастером.</p>',
+  photos:[
+    {id:'photo-demo-1',src:'assets/images/interior.jpg',caption:'Пример размещения журнального стола в гостиной. Фотография иллюстрирует макет.'},
+    {id:'photo-demo-2',src:'assets/images/cover.jpg',caption:'Пример сочетания мебели с интерьером. Материалы и фотографии демонстрационные.'}
+  ]
+};

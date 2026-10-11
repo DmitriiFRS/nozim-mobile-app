@@ -2,6 +2,7 @@
   'use strict';
   const STORAGE_KEY = 'folio.language.v1';
   const en = {
+    'Карточка продукта':'Product detail','Демонстрационная карточка. Продукт не добавлен в ваш каталог.':'Demo product detail. This product is not in your catalog.',
     'Форматируйте описание продукта, добавляйте списки и ссылки.':'Format the product description, add lists and links.',
     'Продукты':'Products',
     'Продукт':'Product',
